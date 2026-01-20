@@ -1,0 +1,16 @@
+---
+daemonset:
+  app_name: hello-daemonset
+
+replicaset:
+  app_name: frontend
+  replicas: 3
+
+statefulset:
+  app_name: hello
+  replicas: 1
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+

@@ -1,0 +1,192 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cakephp-mysql-persistent
+  namespace: {{ namespace }}
+  labels:
+    app: cakephp-mysql-persistent
+type: Opaque
+data:
+  cakephp-secret-token: MnBoVnZmQ19ubWU0SkJ2dUJldWRHRDdNWmdQX1lYWVRieVl0SzBCQUxVQkJQQUxtdVE=
+  cakephp-security-salt: bUllVWk0Y0xyWHE2bHd0Z0ZFM2RZVkxDTDNWcG53ZHZiVFlCM3JVRQ==
+  database-password: a2lxcHJDeTg3SG9TZkhJMA==
+  database-user: Y2FrZXBocA==
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cakephp-mysql-persistent
+  namespace: {{ namespace }}
+  labels:
+    app: cakephp-mysql-persistent
+spec:
+  type: NodePort
+  ports:
+  - name: web
+    port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: {{ node_port | default(30080) }}
+  selector:
+    app: cakephp-mysql-persistent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: {{ namespace }}
+  labels:
+    app: cakephp-mysql-persistent
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+    protocol: TCP
+    targetPort: 3306
+  selector:
+    app: mysql
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql
+  namespace: {{ namespace }}
+  labels:
+    app: cakephp-mysql-persistent
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ storage_size | default('1Gi') }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: {{ namespace }}
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: {{ mysql_image | default('mysql:8.0') }}
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              key: database-user
+              name: cakephp-mysql-persistent
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: database-password
+              name: cakephp-mysql-persistent
+        - name: MYSQL_DATABASE
+          value: default
+        ports:
+        - containerPort: 3306
+          name: mysql
+        livenessProbe:
+          tcpSocket:
+            port: 3306
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -i
+            - -c
+            - MYSQL_PWD='kiqprCy87HoSfHI0' mysql -h 127.0.0.1 -u cakephp -D default -e 'SELECT 1'
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 512Mi
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql/data
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cakephp-mysql-persistent
+  namespace: {{ namespace }}
+  labels:
+    app: cakephp-mysql-persistent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cakephp-mysql-persistent
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: cakephp-mysql-persistent
+    spec:
+      containers:
+      - name: cakephp-mysql-persistent
+        image: {{ cakephp_image | default('shinsenter/cakephp5:latest') }}
+        env:
+        - name: DATABASE_HOST
+          value: mysql
+        - name: DATABASE_NAME
+          value: default
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              key: database-user
+              name: cakephp-mysql-persistent
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: database-password
+              name: cakephp-mysql-persistent
+        - name: CAKEPHP_SECRET_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: cakephp-secret-token
+              name: cakephp-mysql-persistent
+        - name: CAKEPHP_SECURITY_SALT
+          valueFrom:
+            secretKeyRef:
+              key: cakephp-security-salt
+              name: cakephp-mysql-persistent
+        ports:
+        - containerPort: 80
+          name: web
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 60
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 512Mi

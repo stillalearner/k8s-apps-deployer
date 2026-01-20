@@ -1,0 +1,119 @@
+---
+- name: Check mssql resources status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mssql
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+  no_log: true
+
+- name: Check mssql-app resources status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mssql-app
+  register: app_pod
+  until: >-
+    app_pod.resources|default([])|length > 0 and
+    app_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+  no_log: true
+
+- name: Print mssql pods Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ pod.resources }}"
+  when: pod.failed == true
+
+- name: Print mssql-app pods Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ app_pod.resources }}"
+  when: app_pod.failed == true
+
+- name: Fail if pod count is not matching
+  fail:
+    msg: "Pod count should be 1 but got {{ pod.resources | length }}"
+  when: pod.resources|length != 1
+
+- name: Fail if app pod count is not matching
+  fail:
+    msg: "App pod count should be 1 but got {{ app_pod.resources | length }}"
+  when: app_pod.resources|length != 1
+
+- name: Fail if mssql pods are not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready }}"
+  loop: "{{ pod.resources }}"
+  when: pod.failed == true
+
+- name: Fail if mssql-app pods are not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready }}"
+  loop: "{{ app_pod.resources }}"
+  when: app_pod.failed == true
+
+- name: Obtain mssql-app route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+    name: "mssql-app-route"
+  register: mssql_app_route
+  ignore_errors: yes
+
+- name: Verify mssql-app is available via route
+  uri:
+    url: "http://{{ mssql_app_route.resources[0].spec.host }}"
+    method: GET
+    return_content: yes
+  register: uri
+  until: "'Staging' in uri.content"
+  retries: 30
+  delay: 10
+  when: mssql_app_route.resources | length > 0
+
+- name: Check SCC resource exists (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: SecurityContextConstraints
+    name: "{{ namespace }}-scc"
+  register: mssql_app_scc
+  until: "mssql_app_scc.failed != true"
+  retries: 20
+  delay: 5
+  ignore_errors: yes
+
+- name: Check dummy SCC resource exists (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: SecurityContextConstraints
+    name: "{{ dummy_scc }}"
+  register: dummy_scc_check
+  until: "dummy_scc_check.failed != true"
+  retries: 20
+  delay: 5
+  when: create_dummy_scc | default(false) | bool
+  ignore_errors: yes

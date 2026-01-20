@@ -1,0 +1,48 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create an empty imagestream to store the output images (OpenShift only)
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'imagestream.yml.j2') | from_yaml }}"
+  ignore_errors: yes
+
+- name: Create the buildconfig resource to create the image (OpenShift only)
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'buildconfig.yml.j2') | from_yaml }}"
+  ignore_errors: yes
+
+- name: Wait for the build to be finished (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: build.openshift.io/v1
+    kind: Build
+    label_selectors:
+      - build={{ output_imagestream }}
+  register: dockerbuild
+  retries: 20
+  until:
+    - dockerbuild.resources|default([])|length > 0
+    - dockerbuild | json_query('resources[*].status.phase') | flatten |difference( ['Complete'] ) | length  == 0
+  ignore_errors: yes

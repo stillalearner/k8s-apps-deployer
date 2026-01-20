@@ -1,0 +1,57 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: "{{ vm_name }}"
+  namespace: "{{ namespace }}"
+  labels:
+    app: {{ vm_name }}
+spec:
+  dataVolumeTemplates:
+    - metadata:
+        annotations:
+          cdi.kubevirt.io/storage.deleteAfterCompletion: 'false'
+        name: "{{ vm_name }}-dv"
+      spec:
+        pvc:
+          volumeMode: {{ vm_disk_pvc_volume_mode }}
+          accessModes:
+            - {{ vm_disk_pvc_access_mode }}
+          resources:
+            requests:
+              storage: {{ vm_disk_pvc_size }}
+{% if storage_class is defined %}
+          storageClassName: {{ storage_class | quote }}
+{% endif %}
+        source:
+          registry:
+            pullMethod: node
+            url: {{ vm_image }}
+  running: true
+  template:
+    metadata:
+      creationTimestamp: null
+      name: {{ vm_name }}
+    spec:
+      domain:
+        devices:
+          disks:
+            - disk:
+                bus: virtio
+              name: volume0
+          interfaces:
+            - masquerade: {}
+              name: default
+          rng: {}
+        machine:
+          type: q35
+        resources:
+          requests:
+            memory: {{ vm_mem_size }}
+      networks:
+        - name: default
+          pod: {}
+      terminationGracePeriodSeconds: 0
+      volumes:
+        - name: volume0
+          dataVolume:
+            name: "{{ vm_name }}-dv"

@@ -1,0 +1,30 @@
+---
+- name: Check image streams (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "{{ item.internal_image_name }}"
+  register: imagestream
+  until: imagestream.get('resources',[]) | length == 1
+  retries: 10
+  loop: "{{ image_streams }}"
+  ignore_errors: yes
+
+- name: Check pods are running
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    field_selectors:
+      - status.phase=Running
+  register: pods
+  until: >-
+    pods.resources|default([])|length > 0 and
+    pods | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 20
+  ignore_errors: yes

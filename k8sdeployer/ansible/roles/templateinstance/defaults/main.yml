@@ -1,0 +1,10 @@
+---
+app_name: basic-pod
+storage_size: 1Gi
+
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+
+accessmode: ReadWriteOnce

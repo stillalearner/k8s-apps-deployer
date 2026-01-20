@@ -1,0 +1,53 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- name: Create the datagrid service template (OpenShift only)
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('file', 'files/mtc-test-datagrid-service-template.yml') | from_yaml }}"
+  ignore_errors: yes
+
+- name: Create datagrid application from template (OpenShift only)
+  ansible.builtin.command: >
+    kubectl new-app --template mtc-test-datagrid-service
+    -n {{ namespace }}
+    -p APPLICATION_USER={{ app_user }}
+    -p APPLICATION_PASSWORD={{ app_password }}
+    -p NUMBER_OF_INSTANCES={{ num_dg_instances }}
+  changed_when: false
+  ignore_errors: yes
+
+- name: Expose the application service via route (OpenShift only)
+  ansible.builtin.command: >
+    kubectl create route reencrypt datagrid-service-https
+    --port=https
+    --service=datagrid-service
+    -n {{ namespace }}
+  changed_when: false
+  ignore_errors: yes

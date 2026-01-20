@@ -1,0 +1,132 @@
+---
+- name: Check pods status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length == number_of_replicas and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+  no_log: true
+
+- name: Print Pod Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ pod.resources }}"
+  when: pod.failed == true
+
+- name: Fail if pod count is not matching
+  fail:
+    msg: "Pod count should be {{ number_of_replicas }} but got {{ pod.resources | length }}"
+  when: pod.resources|length != number_of_replicas
+
+- name: Fail if any pod is not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready }}"
+  loop: "{{ pod.resources }}"
+  when: pod.failed == true
+
+- name: Get pod name
+  set_fact:
+    pod_name: "{{ (pod.resources|first).metadata.name }}"
+
+- name: Wait until all cassandra node are ready (Status=Up and State=Normal)
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- nodetool status"
+  register: result
+  until: result.stdout is regex('.*UN.*\n.*UN.*\n.*UN.*')
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+
+- name: Scale down the StatefulSet if node ready phase failed
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: StatefulSet
+    namespace: "{{ namespace }}"
+    name: "{{ app_name }}"
+    replicas: 0
+  when: result.failed == true
+  register: scale_down_result
+
+- name: Wait for the StatefulSet to scale down
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: StatefulSet
+    namespace: "{{ namespace }}"
+    name: "{{ app_name }}"
+  register: statefulset_info
+  until: statefulset_info.resources[0].status.replicas == 0
+  retries: 30
+  delay: 10
+  when: result.failed == true
+
+- name: Scale up the StatefulSet after scaling down
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: StatefulSet
+    namespace: "{{ namespace }}"
+    name: "{{ app_name }}"
+    replicas: "{{ number_of_replicas }}"
+  when: scale_down_result is succeeded and result.failed == true
+
+- name: Check pods status after scale up
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length == number_of_replicas and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+  when: result.failed == true
+
+- name: Wait until all cassandra node are ready (Status=Up and State=Normal) after scale up
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- nodetool status"
+  register: node_ready
+  until: node_ready.stdout is regex('.*UN.*\n.*UN.*\n.*UN.*')
+  retries: 30
+  delay: 10
+  when: result.failed == true
+
+- name: Verify Data was populated
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- cqlsh --no-color -e 'SELECT * FROM classicmodels.offices;'"
+  register: result
+  until: result.rc == 0
+  retries: 5
+
+- name: Save actual output
+  copy:
+    content: "{{ result.stdout }}"
+    dest: "{{ role_path }}/files/actual_output"
+  delegate_to: localhost
+
+- name: Verify Data Integrity
+  shell: "diff -w {{ role_path }}/files/expected_output {{ role_path }}/files/actual_output"
+  register: result
+  until: result.rc == 0
+  retries: 5
+  delegate_to: localhost

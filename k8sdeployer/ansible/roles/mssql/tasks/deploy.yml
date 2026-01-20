@@ -1,0 +1,32 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Deploy mssql application
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'manifest.yml.j2') | from_yaml_all | list }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  vars:
+    storage_class: "{{ storage_class if storage_class | length > 0 else '' }}"
+    deployment_api: "apps/v1"
+
+- name: Create dummy SCC resource
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'mssql-scc.yml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  when: create_dummy_scc | default(false) | bool

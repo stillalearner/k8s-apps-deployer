@@ -1,0 +1,61 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create a service object required to provide network identity
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'cassandra-svc.yaml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create a statefulset with the existing yaml
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'cassandra-app.yaml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Check pods status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 30
+  delay: 10
+
+- name: Get pod name
+  set_fact:
+    pod_name: "{{ (pod.resources|first).metadata.name }}"
+
+- name: Wait until all cassandra node are ready (Status=Up and State=Normal)
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- nodetool status"
+  register: result
+  until: result.stdout is regex('.*UN.*\n.*UN.*\n.*UN.*')
+  retries: 30
+  delay: 10
+
+- name: Populate the DB with some sample data
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- cqlsh -e \"CREATE KEYSPACE classicmodels WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }; use classicmodels; CREATE TABLE offices (officeCode text PRIMARY KEY, city text, phone text, addressLine1 text, addressLine2 text, state text, country text, postalCode text, territory text); INSERT into offices(officeCode, city, phone, addressLine1, addressLine2, state, country ,postalCode, territory) values ('1','San Francisco','+1 650 219 4782','100 Market Street','Suite 300','CA','USA','94080','NA');\""
+  register: result
+  until: result.rc == 0
+  retries: 5

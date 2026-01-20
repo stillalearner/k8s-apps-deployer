@@ -1,0 +1,12 @@
+---
+app_name: redis
+redis_password: "PASSWORD"
+redis_version: "latest"
+storage_size: 1Gi
+storage_class: ""
+accessmode: ReadWriteOnce
+redis_image: redis:latest
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

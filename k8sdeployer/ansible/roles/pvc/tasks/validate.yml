@@ -1,0 +1,18 @@
+---
+- name: Check PVC exists
+  k8s_info:
+    kind: PersistentVolumeClaim
+    namespace: "{{ namespace }}"
+    name: "{{ pvc_name }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  register: pvc
+
+- name: Verify PVC exists and is bound
+  assert:
+    that:
+      - pvc.resources | length > 0
+      - pvc.resources[0].status.phase == "Bound"
+    fail_msg: "PVC does not exist or is not bound"
+    success_msg: "PVC exists and is bound"

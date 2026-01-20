@@ -1,0 +1,9 @@
+---
+pvc_name: test-pvc
+storage_size: 1Gi
+storage_class: ""
+accessmode: ReadWriteOnce
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

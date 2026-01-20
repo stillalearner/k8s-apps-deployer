@@ -1,0 +1,41 @@
+---
+- name: Check pod is running
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: app_pod
+  until: >-
+    app_pod.resources|default([])|length > 0 and
+    app_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Validate files in all the PVCs
+  ansible.builtin.command: >
+    kubectl exec {{ (app_pod.resources|first).metadata.name }}
+    -n {{ namespace }}
+    -- /bin/sh -c 'cd /mnt; [ "$(md5sum {{item.path}})" == "$(cat {{item.path}}.md5)" ]'
+  register: async_output
+  retries: 5
+  loop: "{{ files }}"
+  async: 60
+  poll: 0
+  when: app_pod.resources is defined
+
+- name: Wait for the tasks of 'Validate files in all the PVCs' to complete
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ async_output.results }}"
+  loop_control:
+    loop_var: item
+  register: async_result
+  until: async_result.finished
+  retries: 30
+  delay: 1
+  when: app_pod.resources is defined

@@ -1,0 +1,118 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Patch pod-security label to privileged (OpenShift only)
+  ansible.builtin.command: >
+    kubectl label namespace {{ namespace }} pod-security.kubernetes.io/enforce=privileged --overwrite
+  changed_when: false
+  ignore_errors: yes
+
+- name: Deploy todo list application
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    definition: "{{ lookup('template', 'oadp-test-mongodb-persistent-block-template.yml.j2') | from_yaml_all | list }}"
+
+- name: Get the latest build name (OpenShift only)
+  ansible.builtin.command: >
+    kubectl get builds -n {{ namespace }} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'
+  register: build_name
+  changed_when: false
+  ignore_errors: yes
+
+- name: Wait for build to complete successfully (OpenShift only)
+  ansible.builtin.command: >
+    kubectl get build {{ build_name.stdout }} -n {{ namespace }} -o jsonpath='{.status.phase}'
+  register: build_status
+  until: build_status.stdout == "Complete"
+  retries: 60
+  delay: 30
+  failed_when: build_status.stdout == "Failed" or build_status.stdout == "Error" or build_status.stdout == "Cancelled"
+  when: build_name.stdout is defined and build_name.stdout != ""
+  changed_when: false
+
+- name: Display build completion status
+  debug:
+    msg: "Build {{ build_name.stdout }} completed successfully"
+  when: build_name.stdout is defined and build_name.stdout != ""
+
+- name: Check mongo pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mongo
+    field_selectors:
+      - status.phase=Running
+  register: mongo_pod
+  until: >-
+    mongo_pod.resources|default([])|length > 0 and
+    mongo_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check todolist pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=todolist
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Wait until todoapp is ready
+  ansible.builtin.command: >
+    kubectl logs -l app=todolist -n {{ namespace }}
+  register: result
+  until: result.stdout is search('Starting Todolist API server')
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Obtain api route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+  register: "route"
+  until: "route.resources | length > 0"
+  retries: 30
+  delay: 3
+  ignore_errors: yes
+
+- name: Add todo item test
+  uri:
+    url: "http://{{ route.resources[0].spec.host }}/todo"
+    method: POST
+    body: 'description=test'
+    body_format: form-urlencoded
+    headers:
+      Content-Type: "application/x-www-form-urlencoded; charset=UTF-8"
+    status_code: 200
+    return_content: yes
+  register: result
+  when: route.resources | length > 0

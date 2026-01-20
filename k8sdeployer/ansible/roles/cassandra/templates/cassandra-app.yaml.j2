@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ app_name }}
+spec:
+  serviceName: {{ app_name }}
+  replicas: {{ number_of_replicas }}
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      terminationGracePeriodSeconds: 1800
+      containers:
+        - name: {{ app_name }}
+          image: {{ image_path }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 7000
+              name: intra-node
+            - containerPort: 7001
+              name: tls-intra-node
+            - containerPort: 7199
+              name: jmx
+            - containerPort: 9042
+              name: cql
+          resources:
+            limits:
+              cpu: "500m"
+              memory: 1Gi
+            requests:
+              cpu: "500m"
+              memory: 1Gi
+          securityContext:
+            privileged: true
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - nodetool drain
+          env:
+            - name: MAX_HEAP_SIZE
+              value: 512M
+            - name: HEAP_NEWSIZE
+              value: 512M
+            - name: CASSANDRA_SEEDS
+              value: "{{ app_name }}-0.{{ app_name }}.{{ namespace }}.svc.cluster.local"
+            - name: CASSANDRA_CLUSTER_NAME
+              value: "Cassandra"
+            - name: CASSANDRA_DC
+              value: "DC1"
+            - name: CASSANDRA_RACK
+              value: "Rack1"
+            - name: CASSANDRA_AUTO_BOOTSTRAP
+              value: "false"
+            - name: CASSANDRA_ENDPOINT_SNITCH
+              value: GossipingPropertyFileSnitch
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: {{ app_name }}-data
+              mountPath: /var/lib/{{ app_name }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ app_name }}-data
+        labels:
+          app: {{ app_name }}
+      spec:
+        accessModes: [ "{{ accessmode }}" ]
+{% if storage_class | length > 0 %}
+        storageClassName: {{ storage_class }}
+{% endif %}
+        resources:
+          requests:
+            storage: {{ storage_size }}

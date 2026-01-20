@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ app_name }}
+    testlabel: selectors
+    testlabel2: foo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+        testlabel: selectors
+        testlabel2: foo
+{% if pod_annotations is defined %}
+      annotations:
+{% for key, value in pod_annotations.items() %}
+        {{ key | quote }}: {{ value | quote }}
+{% endfor %}
+{% endif %}
+    spec:
+      containers:
+      - image: {{ mysql_image | default('quay.io/migqe/rhel8-mariadb:10.5') }}
+        name: {{ app_name }}
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              key: database-user
+              name: {{ app_name }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: database-password
+              name: {{ app_name }}
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: database-root-password
+              name: {{ app_name }}
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              key: database-name
+              name: {{ app_name }}
+        ports:
+        - containerPort: 3306
+          name: mysql
+        resources:
+          limits:
+            memory: 512Mi
+        securityContext:
+          runAsUser: 27
+        volumeMounts:
+        - name: {{ app_name }}-data
+          mountPath: /var/lib/mysql
+        - name: {{ app_name }}-data1
+          mountPath: /test-data
+      volumes:
+      - name: {{ app_name }}-data
+        persistentVolumeClaim:
+          claimName: {{ app_name }}-data
+      - name: {{ app_name }}-data1
+        persistentVolumeClaim:
+          claimName: {{ app_name }}-data1
+      securityContext:
+        fsGroup: 27
+        runAsUser: 27

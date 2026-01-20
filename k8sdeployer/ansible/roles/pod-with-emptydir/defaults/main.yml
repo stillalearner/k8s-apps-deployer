@@ -1,0 +1,10 @@
+---
+app_name: pod-with-emptydir
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+add_data: false
+file_path: /data/test_file

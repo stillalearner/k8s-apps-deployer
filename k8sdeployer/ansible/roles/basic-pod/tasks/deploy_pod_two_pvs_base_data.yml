@@ -1,0 +1,56 @@
+---
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- name: Create the first pvc
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'persistent-volume-claim.yml.j2') | from_yaml }}"
+  vars:
+    pvc_index: 1
+
+- name: Create the second pvc
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'persistent-volume-claim.yml.j2') | from_yaml }}"
+  vars:
+    pvc_index: 2
+
+- name: Add data to two PVs
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'deploy_pod_two_pvs_base_data.yml.j2') | from_yaml }}"
+
+- name: Deploy a running pod without PVs
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'deploy_pod_without_pvs.yml.j2') | from_yaml }}"
+
+- name: Sleep for a while to wait pvc bound
+  pause:
+    seconds: 30

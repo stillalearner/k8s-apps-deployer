@@ -1,0 +1,21 @@
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  annotations:
+    cdi.kubevirt.io/storage.bind.immediate.requested: "true"
+    cdi.kubevirt.io/storage.deleteAfterCompletion: "false"
+    cdi.kubevirt.io/storage.usePopulator: "true"
+  name: {{ dv_name }}
+  namespace: {{ namespace }}
+spec:
+  pvc:
+    accessModes:
+    - {{ pvc_access_mode }}
+    resources:
+      requests:
+        storage: "{{ pvc_size }}"
+{% if storage_class is defined %}
+    storageClassName: "{{ storage_class }}"
+{% endif %}
+  source:
+    blank: {}

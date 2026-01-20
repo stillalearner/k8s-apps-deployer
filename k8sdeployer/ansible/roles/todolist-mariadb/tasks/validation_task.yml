@@ -1,0 +1,96 @@
+---
+- name: Check database pod is running
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ db_name }}
+    field_selectors:
+      - status.phase=Running
+  register: db_pod
+  until: >-
+    db_pod.resources|default([])|length > 0 and
+    db_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Wait until database service ready for connections
+  ansible.builtin.command: >
+    kubectl logs {{ (db_pod.resources|first).metadata.name }}
+    -n {{ namespace }}
+  register: result
+  until: result.stdout is search('socket.*/var/lib/mysql/mysql.sock.*port.*3306')
+  retries: 30
+  changed_when: false
+
+- name: Check application pod is running
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: app_pod
+  until: >-
+    app_pod.resources|default([])|length > 0 and
+    app_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 5
+
+- name: Wait until API server starts
+  ansible.builtin.command: >
+    kubectl logs {{ (app_pod.resources|first).metadata.name }}
+    -n {{ namespace }}
+  register: result
+  until: result.stdout is search('Starting Todolist API server')
+  retries: 30
+  changed_when: false
+
+- name: Obtain application route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+  register: "route"
+  until: "route.resources | length > 0"
+  retries: 30
+  delay: 3
+  ignore_errors: yes
+
+- name: Find 1st database item
+  uri:
+    url: https://{{ route.resources[0].spec.host }}/todo-completed
+    return_content: yes
+    follow_redirects: all
+    validate_certs: false
+    method: GET
+    status_code: 200
+  register: res
+  retries: 30
+  delay: 10
+  until: res.content is search('prepopulate the db')
+  when: route.resources | length > 0
+
+- name: Find the string in incomplete items
+  uri:
+    url: https://{{ route.resources[0].spec.host }}/todo-incomplete
+    return_content: yes
+    follow_redirects: all
+    validate_certs: false
+    method: GET
+    status_code: 200
+  register: res
+  retries: 30
+  delay: 10
+  until: res.content is search('Test string')
+  when: route.resources | length > 0

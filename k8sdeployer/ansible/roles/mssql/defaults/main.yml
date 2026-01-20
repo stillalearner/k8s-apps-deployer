@@ -1,0 +1,11 @@
+---
+app_name: mssql
+storage_class: ""
+accessmode: ReadWriteOnce
+
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+create_dummy_scc: false
+dummy_scc: mssql-example-scc

@@ -1,0 +1,80 @@
+---
+- name: Check external image pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ ext_app_name }}
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check internal image pods status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ int_app_name }}
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  when: with_validate_target | default(false) | bool
+
+- name: Obtain internal route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ int_app_name }}
+  register: int_route
+  retries: 10
+  until: int_route.resources | length > 0
+  ignore_errors: yes
+  when: with_validate_target | default(false) | bool
+
+- name: Obtain external route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ ext_app_name }}
+  register: ext_route
+  retries: 10
+  until: ext_route.resources | length > 0
+  ignore_errors: yes
+
+- name: Access the internal route content
+  uri:
+    url: http://{{ int_route.resources[0].spec.host }}
+    method: GET
+    return_content: yes
+  register: this
+  retries: 10
+  until: "'<h1>HELLO WORLD</h1>' in this.content"
+  when: int_route.resources | length > 0 and with_validate_target | default(false) | bool
+
+- name: Access the external route content
+  uri:
+    url: http://{{ ext_route.resources[0].spec.host }}
+    method: GET
+    return_content: yes
+  register: this
+  retries: 10
+  until: "'<h1>HELLO WORLD</h1>' in this.content"
+  when: ext_route.resources | length > 0

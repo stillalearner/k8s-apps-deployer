@@ -1,0 +1,79 @@
+---
+- name: Check {{ app_name }} pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase!=Succeeded
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod.resources | 
+    json_query('[?status.containerStatuses[0].ready == `true`]') | 
+    length == (pod.resources | length)
+  retries: 30
+  delay: 5
+  ignore_errors: yes
+  no_log: true
+
+- name: Check if pod task failed
+  set_fact:
+    pod_failed: "{{ pod.failed | default(false) }}"
+    pod_resources: "{{ pod.resources | default([]) }}"
+
+- name: Print Pod Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ pod_resources }}"
+  when: pod_failed == true and pod_resources | length > 0
+
+- name: Fail if pod task failed and no resources
+  fail:
+    msg: "Failed to retrieve pod information. Check if the pod exists in namespace {{ namespace }}."
+  when: pod_failed == true and pod_resources | length == 0
+
+- name: Fail if pod count is not matching
+  fail:
+    msg: "Pod count should be 1 but got {{ pod_resources | length }}"
+  when: pod_resources | length != 1
+
+- name: Fail if any pod is not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready | default('unknown') }}"
+  loop: "{{ pod_resources }}"
+  when: >-
+    pod_resources | length > 0 and
+    (item.status.containerStatuses | default([]) | length > 0 and
+     item.status.containerStatuses[0].ready | default(false) == false)
+
+- name: Get pod name
+  set_fact:
+    pod_name: "{{ (pod_resources|first).metadata.name }}"
+  when: pod_resources | length > 0
+
+- name: Wait until service ready for connections
+  shell: "kubectl logs {{ pod_name }} -n {{ namespace }} -c {{ app_name }} --tail=50"
+  register: result
+  until: result.stdout is search('socket.*/var/lib/mysql/mysql.sock.*port.*3306')
+  retries: 30
+  delay: 5
+
+# The data file contains 100 items. We verify that there are 101 lines in the stdout (100 data, plus the header)
+- name: Query the inserted data
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mysql -uroot MYSQL_DATABASE -e 'select * from authors'\""
+  register: result
+  until: result.rc == 0 and (result.stdout_lines | length == 101)
+  retries: 5
+  delay: 5
+
+- name: Validate test1 file has correct md5 hash
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/sh -c ' cd /test-data; [ \"$(md5sum test1)\" == \"$(cat test1.md5)\" ] '"
+  register: output
+  until: output.rc == 0
+  retries: 5
+  delay: 5

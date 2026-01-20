@@ -1,0 +1,10 @@
+---
+num_visits: 5
+storage_size: 1Gi
+mysql_image: mysql:8.0
+cakephp_image: shinsenter/cakephp5:latest
+node_port: 30080
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

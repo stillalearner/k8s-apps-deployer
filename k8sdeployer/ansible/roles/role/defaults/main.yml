@@ -1,0 +1,11 @@
+---
+rolebinding_name: basic-role-binding
+test_rolename: basic-role
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+role_api: "rbac.authorization.k8s.io/v1"
+rolebinding_api: "rbac.authorization.k8s.io/v1"

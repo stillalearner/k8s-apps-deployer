@@ -1,0 +1,16 @@
+---
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+
+app_name: todolist
+db_name: mysql
+num_replicas: 1
+
+app_image_path: quay.io/migqe/todolist-mariadb:v1
+db_image_path: quay.io/migqe/rhel8-mariadb:10.5
+
+storage_size: 1Gi
+accessmode: ReadWriteOnce
+volumemode: Filesystem

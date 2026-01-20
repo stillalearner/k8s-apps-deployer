@@ -1,0 +1,14 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: vmroute
+  namespace: "{{ namespace }}"
+spec:
+  host:  "{{ vm_host }}"
+  port:
+    targetPort: todoport
+  to:
+    kind: Service
+    name: vm-service
+    weight: 100
+  wildcardPolicy: None

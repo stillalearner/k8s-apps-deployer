@@ -1,0 +1,51 @@
+---
+- name: Check Pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: app_pod
+  until: >-
+    app_pod.resources|default([])|length > 0 and
+    app_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 10
+
+- name: Check PVCs status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: PersistentVolumeClaim
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+  register: app_pvc
+
+- fail:
+    msg: "PVC {{ item.metadata.name }} should be bound, before and after the migration."
+  when: item.status.phase != 'Bound'
+  loop: "{{ app_pvc.resources }}"
+  loop_control:
+    label: "check if PVC {{ item.metadata.name }} is bound in namespace {{ item.metadata.namespace }}"
+
+- name: Ensure that the VolumeSnapshot is present
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshot
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+  register: vs_check
+  until: vs_check.resources | length > 0
+  retries: 6
+  delay: 5
+  ignore_errors: yes

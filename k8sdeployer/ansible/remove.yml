@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  name: Remove Application
+  roles:
+    - role: "{{ use_role }}"
+      vars:
+        with_cleanup: true

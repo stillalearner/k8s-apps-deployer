@@ -1,0 +1,20 @@
+---
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+app_name: app-with-8pvc
+storage_size: 1Gi
+accessmode: ReadWriteOnce
+image: quay.io/migqe/alpine@sha256:25d4b2dad40a77c913a1321e23c051848ac4037b4bd3bd74a5dd5fd3fa78fd50
+
+file_size: 10
+files:
+  - path: volume1/random-data
+  - path: volume2/random-data
+  - path: volume3/random-data
+  - path: volume4/random-data
+  - path: volume5/random-data
+  - path: volume6/random-data
+  - path: volume7/random-data
+  - path: volume8/random-data

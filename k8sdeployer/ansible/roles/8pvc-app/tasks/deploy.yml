@@ -1,0 +1,85 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Deploy application with 8 PVCs
+  k8s:
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment.yml.j2') | from_yaml_all | list }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Check pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 3
+
+- name: Add some files with random data in all the PVCs
+  ansible.builtin.command: >
+    kubectl exec {{ (pod.resources|first).metadata.name }}
+    -n {{ namespace }}
+    -- /bin/sh -c "dd if=/dev/urandom of=/mnt/{{item.path}} bs=10M count={{file_size}}"
+  register: async_output
+  loop: "{{ files }}"
+  async: 60
+  poll: 0
+  when: pod.resources is defined
+
+- name: Wait for the tasks of 'Add some files with random data in all the PVCs' to complete
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ async_output.results }}"
+  loop_control:
+    loop_var: item
+  register: async_result
+  until: async_result.finished
+  retries: 30
+  delay: 1
+  when: pod.resources is defined
+
+- name: Create md5 hashes for the files
+  ansible.builtin.command: >
+    kubectl exec {{ (pod.resources|first).metadata.name }}
+    -n {{ namespace }}
+    -- /bin/sh -c "cd /mnt; md5sum {{item.path}} > {{item.path}}.md5"
+  register: async_output
+  loop: "{{ files }}"
+  async: 60
+  poll: 0
+  when: pod.resources is defined
+
+- name: Wait for the tasks of 'Create md5 hashes for the files' to complete
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ async_output.results }}"
+  loop_control:
+    loop_var: item
+  register: async_result
+  until: async_result.finished
+  retries: 30
+  delay: 1
+  when: pod.resources is defined

@@ -1,0 +1,24 @@
+---
+- name: Add data for application
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'deploy_pod_two_pvs_remove_data.yml.j2') | from_yaml }}"
+
+- name: Wait until validation is done
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}-remove
+    field_selectors:
+      - status.phase=Succeeded
+  register: pod
+  until: pod.resources | length > 0
+  retries: 30

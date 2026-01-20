@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: object-quota
+  namespace: {{ namespace }}
+spec:
+  hard:
+    persistentvolumeclaims: "{{ persistentvolumeclaims }}"
+    services.loadbalancers: "{{ services_loadbalancers }}"
+    services.nodeports: "{{ services_nodeports }}"
+    pods: "{{ pods }}"
+    replicationcontrollers: "{{ replicationcontrollers }}"
+    secrets: "{{ secrets }}"
+    configmaps: "{{ configmaps }}"
+    services: "{{ services_value }}"
+    limits.cpu: "{{ limits_cpu }}"
+    limits.memory: "{{ limits_memory }}"
+    requests.cpu: "{{ requests_cpu }}"
+    requests.memory: "{{ requests_memory }}"

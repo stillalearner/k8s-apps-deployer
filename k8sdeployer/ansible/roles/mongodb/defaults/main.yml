@@ -1,0 +1,14 @@
+---
+app_name: mongodb
+namespace: mongodb
+mongodb_user: user
+mongodb_pass: pass
+mongodb_version: latest
+storage_size: 2Gi
+storage_class: ""
+accessmode: ReadWriteOnce
+mongodb_image: mongo:latest
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "k8s-apps-deployer"
+version = "1.0.0"
+description = "A simplified tool for deploying applications to Kubernetes and OpenShift"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "K8s Apps Deployer Contributors"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "ansible>=7.0.0",
+    "ansible-runner>=2.3.0",
+    "kubernetes>=28.0.0",
+    "openshift>=0.13.0",
+    "pyyaml>=6.0",
+    "jmespath>=1.0.0",
+]
+
+[project.scripts]
+k8sdeploy = "k8sdeployer.cli:main"
+k8s-deployer = "k8sdeployer.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"k8sdeployer" = ["ansible/**/*"]

@@ -1,0 +1,47 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Import image to imagestream (OpenShift only)
+  ansible.builtin.command: >
+    kubectl import-image {{ item.internal_image_name }}:{{ item.internal_image_tag }}
+    --from {{ item.external_image_name }}:{{ item.external_image_tag }}
+    --confirm
+    -n {{ namespace }}
+  loop: "{{ image_streams }}"
+  when: add_imagestreams | default(false) | bool
+  changed_when: false
+  ignore_errors: yes
+
+- name: Tag the imported images (OpenShift only)
+  ansible.builtin.command: >
+    kubectl tag {{ item.0.internal_image_name }}:{{ item.0.internal_image_tag }}
+    {{ item.0.internal_image_name }}:{{ item.1.name }}
+    --alias={{ item.1.alias }}
+    -n {{ namespace }}
+  loop: "{{ image_streams|subelements('extra_tags') }}"
+  when: add_istags | default(false) | bool
+  changed_when: false
+  ignore_errors: yes
+
+- name: Create test pods to pull images
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    definition: "{{ lookup('template', 'testpod.yml.j2') | from_yaml }}"
+  vars:
+    name: "usetag-{{ item.internal_image_tag }}"
+    image: "{{ default_registry }}/{{ namespace }}/{{ item.internal_image_name }}:{{ item.internal_image_tag }}"
+  loop: "{{ image_streams }}"
+  ignore_errors: yes

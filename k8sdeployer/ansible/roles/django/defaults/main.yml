@@ -1,0 +1,11 @@
+---
+num_visits: 1
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+source_repository_ref: "4.2.x"
+
+expected_num_visits_after_migration: "{{ num_visits|int + 1 }}"

@@ -1,0 +1,56 @@
+---
+- name: Check mysql pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mysql
+    field_selectors:
+      - status.phase=Running
+  register: mysqlpod
+  until: >-
+    mysqlpod.resources|default([])|length > 0 and
+    mysqlpod.resources | 
+    json_query('[?status.containerStatuses[0].ready == `true`]') | 
+    length == (mysqlpod.resources | length)
+  retries: 60
+  delay: 5
+
+- name: Check application pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=cakephp-mysql-persistent
+    field_selectors:
+      - status.phase=Running
+  register: apppod
+  until: >-
+    apppod.resources|default([])|length > 0 and
+    apppod.resources | 
+    json_query('[?status.containerStatuses[0].ready == `true`]') | 
+    length == (apppod.resources | length)
+  retries: 60
+  delay: 5
+
+- name: Verify MySQL pod is ready
+  assert:
+    that:
+      - mysqlpod.resources | length > 0
+      - mysqlpod.resources[0].status.containerStatuses[0].ready == true
+    fail_msg: "MySQL pod is not ready"
+    success_msg: "MySQL pod is ready"
+
+- name: Verify CakePHP application pod is ready
+  assert:
+    that:
+      - apppod.resources | length > 0
+      - apppod.resources[0].status.containerStatuses[0].ready == true
+    fail_msg: "CakePHP application pod is not ready"
+    success_msg: "CakePHP application pod is ready"

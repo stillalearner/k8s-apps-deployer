@@ -1,0 +1,71 @@
+---
+- name: Check mongo pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mongo
+    field_selectors:
+      - status.phase=Running
+  register: mongo_pod
+  until: >-
+    mongo_pod.resources|default([])|length > 0 and
+    mongo_pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check todolist pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=todolist
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+
+- name: Wait until todoapp is ready
+  ansible.builtin.command: >
+    kubectl logs -l app=todolist -n {{ namespace }}
+  register: result
+  until: result.stdout is search('Starting Todolist API server')
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Obtain api route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+  register: "route"
+  until: "route.resources | length > 0"
+  retries: 30
+  delay: 3
+  ignore_errors: yes
+
+- name: Find the string in incomplete items
+  uri:
+    url: http://{{ route.resources[0].spec.host }}/todo-incomplete
+    return_content: yes
+    follow_redirects: all
+    validate_certs: false
+    method: GET
+    status_code: 200
+  register: res
+  retries: 2
+  delay: 2
+  until: res.content is search('test')
+  when: route.resources | length > 0

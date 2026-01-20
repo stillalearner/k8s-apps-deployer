@@ -1,0 +1,149 @@
+---
+- name: Get the latest build name (OpenShift only)
+  ansible.builtin.command: >
+    kubectl get builds -n {{ namespace }} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}'
+  register: build_name
+  changed_when: false
+  ignore_errors: yes
+
+- name: Wait for build to complete successfully (OpenShift only)
+  ansible.builtin.command: >
+    kubectl get build {{ build_name.stdout }} -n {{ namespace }} -o jsonpath='{.status.phase}'
+  register: build_status
+  until: build_status.stdout == "Complete"
+  retries: 60
+  delay: 30
+  failed_when: build_status.stdout == "Failed" or build_status.stdout == "Error" or build_status.stdout == "Cancelled"
+  when: build_name.stdout is defined and build_name.stdout != ""
+  changed_when: false
+
+- name: Display build completion status
+  debug:
+    msg: "Build {{ build_name.stdout }} completed successfully"
+  when: build_name.stdout is defined and build_name.stdout != ""
+
+- name: Check postgresql pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - name=postgresql
+    field_selectors:
+      - status.phase!=Succeeded
+  register: psqlpod
+  until: >-
+    psqlpod.resources|default([])|length > 0 and
+    psqlpod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  ignore_errors: yes
+  no_log: true
+
+- name: Check application pod status
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - name=django-psql-persistent
+    field_selectors:
+      - status.phase!=Succeeded
+  register: apppod
+  until: >-
+    apppod.resources|default([])|length > 0 and
+    apppod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+  no_log: true
+
+- name: Print psql pod Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ psqlpod.resources }}"
+  when: psqlpod.failed == true
+
+- name: Fail if psql pod count is not matching
+  fail:
+    msg: "Pod count should be 1 but got {{ psqlpod.resources | length }}"
+  when: psqlpod.resources|length != 1
+
+- name: Fail if any psql pod is not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready }}"
+  loop: "{{ psqlpod.resources }}"
+  when: psqlpod.failed == true
+
+- name: Print django pod Status.Phase
+  debug:
+    msg: "Pod Name: {{ item.metadata.name }} | Status: {{ item.status.phase }}"
+  loop: "{{ apppod.resources }}"
+  when: apppod.failed == true
+
+- name: Fail if django pod count is not matching
+  fail:
+    msg: "Pod count should be 1 but got {{ apppod.resources | length }}"
+  when: apppod.resources|length != 1
+
+- name: Fail if any pod is not ready
+  fail:
+    msg: "Pod Name: {{ item.metadata.name }} | Ready Status: {{ item.status.containerStatuses[0].ready }}"
+  loop: "{{ apppod.resources }}"
+  when: apppod.failed == true
+
+- name: Get route (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=django-psql-persistent
+  register: app_route
+  until: app_route.resources | length > 0
+  delay: 10
+  retries: 30
+  ignore_errors: yes
+
+- name: Access the html file
+  uri:
+    url: http://{{ app_route.resources[0].spec.host }}
+    method: GET
+    status_code: 200
+    return_content: true
+  register: page_content
+  retries: 20
+  delay: 10
+  until: page_content.status == 200
+  when: app_route.resources | length > 0
+
+- set_fact:
+    expected_num_visits: "{{ num_visits if expected_num_visits is not defined else expected_num_visits }}"
+    cacheable: yes
+
+- name: Get num visits up to now
+  uri:
+    url: http://{{ app_route.resources[0].spec.host }}/health
+    method: GET
+    status_code: 200
+    return_content: true
+  register: actual_num_visits
+  retries: 20
+  delay: 10
+  until: actual_num_visits.status == 200
+  when: app_route.resources | length > 0
+
+- name: Check num of visits
+  fail:
+    msg: "# of visits should be {{ expected_num_visits }}; actual {{ actual_num_visits.content }}"
+  when: app_route.resources | length > 0 and actual_num_visits.content|int != (expected_num_visits|int)
+
+- name: Print num of visits
+  debug:
+    msg: "PASS: # of visits should be {{ expected_num_visits }}; actual {{ actual_num_visits.content }}"
+  when: app_route.resources | length > 0

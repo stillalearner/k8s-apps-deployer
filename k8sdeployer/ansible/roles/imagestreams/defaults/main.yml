@@ -1,0 +1,36 @@
+---
+helper_namespace: "mirror-helper"
+source_image: "quay.io/migqe/alpine:3.16"
+target_image: "{{ namespace }}/test-mirror:latest"
+default_registry: "image-registry.openshift-image-registry.svc:5000"
+
+
+image_streams:
+  - external_image_name: quay.io/migqe/alpine
+    internal_image_name: internal-image
+    internal_image_tag: alp
+    external_image_tag: 3.16
+    extra_tags:
+      - name: tag1
+        alias: false
+      - name: tag2
+        alias: true
+  - external_image_name: quay.io/migqe/busybox
+    internal_image_name: internal-image
+    internal_image_tag: busy
+    external_image_tag: 1.35
+    extra_tags:
+      - name: tag3
+        alias: false
+      - name: latest
+        alias: false
+      - name: tag4
+        alias: true
+
+with_deploy: false
+with_migrate: false
+with_cleanup: false
+with_validate: false
+with_mirror: false
+add_imagestreams: true
+add_istags: true

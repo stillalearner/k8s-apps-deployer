@@ -1,0 +1,32 @@
+---
+- name: Check project status (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ namespace }}"
+    label_selectors:
+      - name={{ project_label }}
+  register: project
+  until: project.resources | length == 1
+  retries: 30
+  ignore_errors: yes
+
+- name: Verify zone (OpenShift only)
+  fail:
+    msg: "Project {{ namespace }} has no node selector configured. Project: {{ project }}"
+  when: project.resources | length > 0 and (project.resources|first).metadata.annotations.get('openshift.io/node-selector','') != 'region='+project_region
+
+- name: Check namespace status (Kubernetes)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+  until: ns.resources | length > 0
+  retries: 30
+  when: project.resources | length == 0

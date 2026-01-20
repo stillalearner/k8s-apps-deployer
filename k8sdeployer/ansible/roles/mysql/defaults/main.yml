@@ -1,0 +1,12 @@
+---
+app_name: mysql
+storage_size: 2Gi
+storage_class: ""
+accessmode: ReadWriteOnce
+mysql_image: quay.io/migqe/mysql:8.0
+mysql_version: "8.0"
+pause_after_md5_hashing_seconds: 30
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

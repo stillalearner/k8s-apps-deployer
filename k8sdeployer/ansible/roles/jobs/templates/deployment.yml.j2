@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: '{{ app_name }}'
+  name: '{{ app_name }}'
+  namespace: '{{ namespace }}'
+spec:
+  template:
+    metadata:
+      labels:
+        app: '{{ app_name }}'
+    spec:
+      containers:
+      - command:
+        - sh
+        - -c
+        - |-
+          echo 'Original source image: {{ docker_image }} Sleeping for {{ sleep_time }}';
+          sleep {{ sleep_time }};
+          echo 'Done!'
+        image: '{{ docker_image }}'
+        name: '{{ app_name }}'
+      restartPolicy: Never

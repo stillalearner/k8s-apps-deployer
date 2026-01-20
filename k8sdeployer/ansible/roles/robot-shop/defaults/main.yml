@@ -1,0 +1,8 @@
+---
+src_storage_class: "default"
+
+with_deploy: false
+with_migrate: false
+with_cleanup: false
+with_validate: false
+

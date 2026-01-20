@@ -1,0 +1,12 @@
+---
+int_app_name: internal-job
+ext_app_name: external-job
+fast_app_name: fast-job
+
+internal_image_name: internal-alpine
+internal_image_tag: int
+external_image_name: quay.io/migqe/nginx-unprivileged:1.23
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

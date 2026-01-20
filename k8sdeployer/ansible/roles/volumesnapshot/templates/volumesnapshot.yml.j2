@@ -1,0 +1,11 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  labels:
+    app: {{ app_name }}
+    velero.io/backup-name: {{ app_name }}-with-a-empty-pvc
+  name: {{ app_name }}-with-a-empty-pvc
+  namespace: {{ namespace }}
+spec:
+  source:
+    persistentVolumeClaimName: {{ namespace }}-pvc-{{ pvc_index }}

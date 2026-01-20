@@ -1,0 +1,8 @@
+---
+namespace: configmap
+confmap_name: redis-config
+app_name: redis
+
+with_deploy: false
+with_validate: false
+with_cleanup: false

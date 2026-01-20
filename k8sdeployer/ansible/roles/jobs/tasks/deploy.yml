@@ -1,0 +1,37 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Deploy job using external image
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'deployment.yml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  vars:
+    app_name: "{{ ext_app_name }}"
+    sleep_time: 1d
+    docker_image: quay.io/migqe/alpine:3.16
+
+- name: Deploy job using internal image (if OpenShift)
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'deployment.yml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  vars:
+    app_name: "{{ int_app_name }}"
+    sleep_time: 1d
+    docker_image: "{{ external_image_name }}"
+  when: is_openshift | default(false)

@@ -1,0 +1,50 @@
+---
+- name: Check Role
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: "{{ role_api }}"
+    kind: Role
+    namespace: "{{ namespace }}"
+    name: "{{ test_rolename }}"
+  register: rolenm
+  until: rolenm.resources | length > 0
+  retries: 30
+
+- name: Check RoleBinding
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: "{{ rolebinding_api }}"
+    kind: RoleBinding
+    name: "{{ rolebinding_name }}"
+    namespace: "{{ namespace }}"
+  register: role_binding
+  until: role_binding.resources | length > 0
+  retries: 30
+
+- name: Verify sa has permission to create pod (OpenShift only)
+  ansible.builtin.command: >
+    kubectl auth can-i create pod
+    -n {{ namespace }}
+    --as=system:serviceaccount:{{namespace}}:basic-sa
+  register: output
+  changed_when: false
+  ignore_errors: yes
+
+- debug:
+    msg: "{{ output }}"
+
+- fail:
+    msg: "Looks like this SA doesn't have permission to create pod in {{ namespace }} namespace"
+  when: output.stdout is defined and output.stdout == "no"
+
+- fail:
+    msg: Wrong namespace in rolebinding roleRef
+  when: role_binding.resources[0].get('roleRef', {}).get('namespace', namespace) != namespace and role_binding.resources[0].get('roleRef', {}).get('namespace') is defined
+
+- fail:
+    msg: Wrong namespace in rolebinding service account
+  when: role_binding.resources[0].get('subjects')[0].get('namespace','') != namespace

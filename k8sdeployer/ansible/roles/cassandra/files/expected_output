@@ -1,0 +1,6 @@
+
+ officecode | addressline1      | addressline2 | city          | country | phone           | postalcode | state | territory
+------------+-------------------+--------------+---------------+---------+-----------------+------------+-------+-----------
+          1 | 100 Market Street |    Suite 300 | San Francisco |     USA | +1 650 219 4782 |      94080 |    CA |        NA
+
+(1 rows)

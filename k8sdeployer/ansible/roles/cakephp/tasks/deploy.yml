@@ -1,0 +1,66 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Allow namespace to settle
+  pause:
+    seconds: 5
+
+- name: Create CakePHP application resources
+  k8s:
+    state: present
+    definition: "{{ item }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  loop: "{{ lookup('template', 'cakephp-k8s.yml.j2') | from_yaml_all | list }}"
+
+- name: Wait for MySQL pod to be ready
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=mysql
+    field_selectors:
+      - status.phase=Running
+  register: mysqlpod
+  until: >-
+    mysqlpod.resources|default([])|length > 0 and
+    mysqlpod.resources | 
+    json_query('[?status.containerStatuses[0].ready == `true`]') | 
+    length == (mysqlpod.resources | length)
+  retries: 60
+  delay: 5
+
+- name: Wait for CakePHP application pod to be ready
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app=cakephp-mysql-persistent
+    field_selectors:
+      - status.phase=Running
+  register: apppod
+  until: >-
+    apppod.resources|default([])|length > 0 and
+    apppod.resources | 
+    json_query('[?status.containerStatuses[0].ready == `true`]') | 
+    length == (apppod.resources | length)
+  retries: 60
+  delay: 5
+  ignore_errors: yes

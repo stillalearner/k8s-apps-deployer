@@ -1,0 +1,47 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create basic pod
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: "{{ app_name }}"
+        namespace: "{{ namespace }}"
+        labels:
+          app: "{{ app_name }}"
+      spec:
+        containers:
+        - name: nginx
+          image: "{{ image }}"
+          ports:
+          - containerPort: "{{ port }}"
+            name: http
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Wait for pod to be ready
+  k8s_info:
+    kind: Pod
+    namespace: "{{ namespace }}"
+    name: "{{ app_name }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  register: pod
+  until: pod.resources | length > 0 and pod.resources[0].status.phase == "Running"
+  retries: 30
+  delay: 5

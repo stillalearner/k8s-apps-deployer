@@ -1,0 +1,8 @@
+---
+app_name: basic-pod
+image: nginx:latest
+port: 80
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

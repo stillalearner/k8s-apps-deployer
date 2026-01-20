@@ -1,0 +1,11 @@
+---
+- name: Check storage class is present
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: StorageClass
+    name: test-sc
+  register: sc
+  retries: 20
+  until: sc.resources | length > 0

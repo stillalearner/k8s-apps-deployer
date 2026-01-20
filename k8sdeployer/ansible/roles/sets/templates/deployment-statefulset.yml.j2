@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    note: this is my example annotation, happy boy
+  labels:
+    app: {{ app_name }}
+    name: {{ app_name }}
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+spec:
+  replicas: {{ replicas }}
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  serviceName: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+      - image: quay.io/openshifttest/hello-openshift:aosqe
+        name: {{ app_name }}
+        ports:
+        - containerPort: 8080
+          name: web
+          protocol: TCP
+        resources:
+          limits:
+            memory: 256Mi
+      restartPolicy: Always

@@ -1,0 +1,20 @@
+---
+- name: Check external cronjob exists
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: CronJob
+    namespace: "{{ namespace }}"
+    name: "{{ ext_app_name }}"
+  register: cronjob
+  until: cronjob.resources | length > 0
+  retries: 10
+  delay: 5
+
+- name: Verify cronjob is scheduled
+  assert:
+    that:
+      - cronjob.resources[0].spec.schedule is defined
+    fail_msg: "CronJob schedule not found"
+    success_msg: "CronJob is properly scheduled"

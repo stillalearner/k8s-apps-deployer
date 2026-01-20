@@ -1,0 +1,12 @@
+---
+- name: Remove storageclass
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    name: test-sc
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    state: absent
+    wait: yes
+    wait_timeout: 600

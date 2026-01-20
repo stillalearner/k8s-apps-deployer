@@ -1,0 +1,100 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create MongoDB secret
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ app_name }}"
+        namespace: "{{ namespace }}"
+      stringData:
+        mongodb-user: "{{ mongodb_user }}"
+        mongodb-password: "{{ mongodb_pass }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create MongoDB service
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ app_name }}"
+        namespace: "{{ namespace }}"
+        labels:
+          name: "{{ app_name }}"
+      spec:
+        ports:
+        - name: mongodb
+          port: 27017
+          targetPort: 27017
+        selector:
+          name: "{{ app_name }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create MongoDB PVC
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'pvc.yml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Create MongoDB deployment
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'deployment.yml.j2') | from_yaml }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Wait for MongoDB pod to be ready
+  k8s_info:
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - name={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+  register: pod
+  until: pod.resources | length > 0 and (pod.resources[0].status.containerStatuses[0].ready | default(false))
+  retries: 40
+  delay: 10
+
+- name: Get pod name
+  set_fact:
+    pod_name: "{{ (pod.resources | first).metadata.name }}"
+
+- name: Copy mongodb provision script to pod
+  shell: "kubectl cp {{ role_path }}/files/mongodb.js {{ namespace }}/{{ pod_name }}:/tmp/mongodb.js -c {{ app_name }}"
+  register: result
+  retries: 10
+  until: result.rc == 0
+  delay: 5
+
+- name: Load data in mongodb database
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mongo sampledb -u {{ mongodb_user }} -p {{ mongodb_pass }} < /tmp/mongodb.js\""
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  retries: 5
+  delay: 5

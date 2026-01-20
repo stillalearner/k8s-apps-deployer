@@ -1,0 +1,7 @@
+---
+- hosts: localhost
+  name: Validate Application
+  roles:
+    - role: "{{ use_role }}"
+      vars:
+        with_validate: true

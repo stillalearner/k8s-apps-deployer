@@ -1,0 +1,38 @@
+---
+- name: Validating application
+  block:
+    - name: Validating application
+      include_tasks: validation_task.yml
+  rescue:
+    - name: Check application pod is running
+      k8s_info:
+        host: "{{ server }}"
+        api_key: "{{ token }}"
+        verify_ssl: "{{ verify_ssl }}"
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - app={{ app_name }}
+      register: app_pod
+    - name: Check database pod is running
+      k8s_info:
+        host: "{{ server }}"
+        api_key: "{{ token }}"
+        verify_ssl: "{{ verify_ssl }}"
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - app={{ db_name }}
+      register: db_pod
+    - name: Validation fail, delete the API server pod
+      ansible.builtin.command: >
+        kubectl delete pod {{ (app_pod.resources|first).metadata.name }}
+        -n {{ namespace }}
+      changed_when: false
+    - name: Bounce mysql pod
+      ansible.builtin.command: >
+        kubectl delete pod {{ (db_pod.resources|first).metadata.name }}
+        -n {{ namespace }}
+      changed_when: false
+    - name: Validating application after nuking
+      include_tasks: validation_task.yml

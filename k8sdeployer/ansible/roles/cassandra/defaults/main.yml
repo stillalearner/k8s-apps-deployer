@@ -1,0 +1,11 @@
+---
+app_name: cassandra
+storage_size: 1Gi
+number_of_replicas: 3
+storage_class: ""
+accessmode: ReadWriteOnce
+image_path: quay.io/migqe/cassandra:multiarch
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

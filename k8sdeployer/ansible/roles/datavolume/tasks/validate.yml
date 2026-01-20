@@ -1,0 +1,28 @@
+---
+- name: Wait for DataVolume to be in Succeeded phase
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    namespace: "{{ namespace }}"
+    name: "{{ dv_name }}"
+  register: dv_status
+  until: (dv_status.resources | json_query('[0].status.phase') | default('')) == 'Succeeded'
+  retries: 30
+  delay: 10
+  ignore_errors: yes
+
+- name: Wait until there is only one pvc
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: "{{ namespace }}"
+  register: pvc_list
+  retries: 60
+  delay: 5
+  until: (pvc_list.resources | length) == 1

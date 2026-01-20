@@ -1,0 +1,31 @@
+---
+- name: Ensure namespace exists
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Deploy Django application from template (OpenShift only)
+  ansible.builtin.command: >
+    kubectl create -f - <<EOF
+    {{ lookup('template', 'django-psql-persistent-template.yml.j2') }}
+    EOF
+  register: template_result
+  changed_when: false
+  ignore_errors: yes
+  when: false  # Skip template-based deployment for now
+
+- name: Deploy Django application directly (K8s compatible)
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: present
+    definition: "{{ lookup('template', 'django-deployment.yml.j2') | from_yaml_all | list }}"
+  when: true  # Use direct K8s deployment

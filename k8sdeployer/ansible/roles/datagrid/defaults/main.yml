@@ -1,0 +1,15 @@
+---
+num_dg_instances: 1
+app_password: changeme
+app_user: test
+hotrod_client_sourcecode: "{{ role_path }}/files/hotrod_client_app_template.yml"
+cronjob_insert_sourcecode: "{{ role_path }}/files/cronjob_app_template.yml"
+cron_name: rest-insert
+rest_cache_name: "restcache"
+hotrod_cache_name: "hotrodcache"
+
+with_deploy: false
+with_cleanup: false
+with_validate_source: false
+with_validate_target: false
+

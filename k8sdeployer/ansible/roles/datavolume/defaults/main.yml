@@ -1,0 +1,9 @@
+---
+dv_name: test-dv
+pvc_size: 100Mi
+pvc_access_mode: ReadWriteOnce
+
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

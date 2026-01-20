@@ -1,0 +1,209 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: {{ namespace }}-sa
+  namespace: {{ namespace }}
+  labels:
+    component: {{ namespace }}
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ namespace }}-scc
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: true
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+fsGroup:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+volumes:
+- '*'
+users:
+- system:admin
+- system:serviceaccount:{{ namespace }}:{{ namespace }}-sa
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ db_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ db_name }}
+spec:
+  volumeMode: {{ volumemode }}
+  accessModes:
+  - {{ accessmode }}
+{% if storage_class is defined %}
+  storageClassName: {{ storage_class | quote }}
+{% endif %}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    template.openshift.io/expose-uri: mariadb://{.spec.clusterIP}:{.spec.ports[?(.name=="{{ db_name }}")].port}
+  name: {{ db_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ db_name }}
+    service: {{ db_name }}
+spec:
+  ports:
+  - protocol: TCP
+    name: {{ db_name }}
+    port: 3306
+  selector:
+    app: {{ db_name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    template.alpha.openshift.io/wait-for-ready: 'true'
+  name: {{ db_name }}
+  namespace: {{ namespace }}
+  labels:
+    e2e-app: "true"
+spec:
+  selector:
+    matchLabels:
+      app: {{ db_name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        e2e-app: "true"
+        app: {{ db_name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      serviceAccountName: {{ namespace }}-sa
+      containers:
+      - image: {{ db_image_path }}
+        name: {{ db_name }}
+        env:
+          - name: MYSQL_USER
+            value: changeme
+          - name: MYSQL_PASSWORD
+            value: changeme
+          - name: MYSQL_ROOT_PASSWORD
+            value: root
+          - name: MYSQL_DATABASE
+            value: todolist
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 3306
+          name: {{ db_name }}
+        resources:
+          limits:
+            memory: 512Mi
+{% if volumemode == "Block" %}
+        volumeDevices:
+        - name: {{ db_name }}-data
+          devicePath: /var/lib/{{ db_name }}
+{% endif %}
+{% if volumemode == "Filesystem" %}
+        volumeMounts:
+        - name: {{ db_name }}-data
+          mountPath: /var/lib/{{ db_name }}
+{% endif %}
+      volumes:
+      - name: {{ db_name }}-data
+        persistentVolumeClaim:
+          claimName: {{ db_name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ app_name }}
+    service: {{ app_name }}
+spec:
+  ports:
+    - name: web
+      port: 8000
+      targetPort: 8000
+  selector:
+    app: {{ app_name }}
+    service: {{ app_name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ app_name }}
+    service: {{ app_name }}
+spec:
+  replicas: {{ num_replicas }}
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+      service: {{ app_name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+        service: {{ app_name }}
+    spec:
+      containers:
+      - name: {{ app_name }}
+        image: {{ app_image_path }}
+        ports:
+          - containerPort: 8000
+            protocol: TCP
+        env:
+        - name: DB_NAME
+          value: {{ db_name }}
+      initContainers:
+        - command:
+          - /bin/sh
+          - -c
+          - |
+            until mysqladmin ping -h $DB_NAME -u $MYSQL_USER --password=$MYSQL_PASSWORD --silent; do
+              echo "Waiting for MySQL..."
+              sleep 2
+            done
+            echo "MySQL is up!"
+          env:
+          - name: MYSQL_USER
+            value: changeme
+          - name: MYSQL_PASSWORD
+            value: changeme
+          - name: DB_NAME
+            value: mysql
+          image: quay.io/migqe/rhel8-mariadb:10.5
+          name: wait-for-mysql
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ app_name }}-route
+  namespace: {{ namespace }}
+  labels:
+    app: {{ app_name }}
+spec:
+  path: "/"
+  to:
+    kind: Service
+    name: {{ app_name }}
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge

@@ -1,0 +1,28 @@
+---
+- name: Check that imagestream has been created (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: image.openshift.io/v1
+    kind: ImageStream
+    name: "{{ output_imagestream }}"
+    namespace: "{{ namespace }}"
+  register: istream
+  until: istream.resources|default([])|length == 1
+  retries: 30
+  ignore_errors: yes
+
+- name: Check that internal image tag has been created (OpenShift only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: image.openshift.io/v1
+    kind: ImageStreamTag
+    name: "{{ output_imagestream }}:latest"
+    namespace: "{{ namespace }}"
+  register: istag
+  until: istag.resources|default([])|length == 1
+  retries: 30
+  ignore_errors: yes

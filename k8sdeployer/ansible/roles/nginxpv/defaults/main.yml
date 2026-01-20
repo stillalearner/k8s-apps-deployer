@@ -1,0 +1,14 @@
+---
+app_name: nginx
+storage_size: 1Gi
+num_visits: 1
+
+with_deploy: false
+with_cleanup: false
+with_validate: false
+with_delete_deployment: false
+with_delete_pvcs: false
+
+
+logs_accessmode: ReadWriteOnce
+html_accessmode: ReadWriteOnce

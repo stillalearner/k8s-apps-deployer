@@ -1,0 +1,67 @@
+apiVersion: template.openshift.io/v1
+kind: TemplateInstance
+metadata:
+  name: oadp-templateinstance-for-testing
+  namespace: {{ namespace }}
+spec:
+  template:
+    labels:
+      template: test
+    message: This template is only for testing
+    objects:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          app: {{ app_name }}
+        name: {{ app_name }}-logs
+        namespace: {{ namespace }}
+      spec:
+        accessModes:
+        - {{ accessmode }}
+        resources:
+          requests:
+            storage: {{ storage_size }}
+        {% if storage_class is defined and storage_class != "default" %}
+        storageClassName: {{ storage_class | quote }}
+        {% endif %}
+
+    - apiVersion: apps.openshift.io/v1
+      kind: DeploymentConfig
+      metadata:
+        labels:
+          app: {{ app_name }}
+        name: {{ app_name }}-deployment
+        namespace: {{ namespace }}
+      spec:
+        replicas: 1
+        selector:
+          app: {{ app_name }}
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              app: {{ app_name }}
+          spec:
+            containers:
+            - image: quay.io/migqe/alpine:3.16
+              command: [ "/bin/sh", "-c", "--" ]
+              args:
+              -  "echo 'Hello world!' > /data/logs;
+                  while true; do sleep 30; done;"
+              resources:
+                limits:
+                  cpu: "0.1"
+                  memory: 128Mi
+              name: {{ app_name }}
+              volumeMounts:
+              - mountPath: /data
+                name: {{ app_name }}-logs
+                readOnly: false
+            volumes:
+            - name: {{ app_name }}-logs
+              persistentVolumeClaim:
+                claimName: {{ app_name }}-logs
+        triggers:
+        - type: ConfigChange

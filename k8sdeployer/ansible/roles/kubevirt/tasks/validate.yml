@@ -1,0 +1,13 @@
+---
+- name: Check VM status (KubeVirt only)
+  k8s_info:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    namespace: "{{ namespace }}"
+  register: vm
+  until: vm.resources | length > 0
+  retries: 30
+  ignore_errors: yes

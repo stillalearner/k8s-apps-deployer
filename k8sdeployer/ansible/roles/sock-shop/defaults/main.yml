@@ -1,0 +1,7 @@
+---
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+mysql_version: 5.7

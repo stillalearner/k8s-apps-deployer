@@ -1,0 +1,8 @@
+---
+- name: Remove corruptor pod
+  k8s:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    state: absent
+    definition: "{{ lookup('template', 'pod-corrupter.yml.j2') | from_yaml }}"

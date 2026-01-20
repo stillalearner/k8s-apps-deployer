@@ -1,0 +1,165 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume1
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume2
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume3
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume4
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume5
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume6
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume7
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: volume8
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - {{ accessmode }}
+  resources:
+    requests:
+      storage: {{ storage_size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+      - name: alpine
+        image: {{ image }}
+        tty: true
+        interactive: true
+        command: ["/bin/sh"]
+        args:
+          - "-c"
+          - |
+            while true; do
+              sleep 30
+            done
+        volumeMounts:
+        - name: volume1
+          mountPath: /mnt/volume1
+        - name: volume2
+          mountPath: /mnt/volume2
+        - name: volume3
+          mountPath: /mnt/volume3
+        - name: volume4
+          mountPath: /mnt/volume4
+        - name: volume5
+          mountPath: /mnt/volume5
+        - name: volume6
+          mountPath: /mnt/volume6
+        - name: volume7
+          mountPath: /mnt/volume7
+        - name: volume8
+          mountPath: /mnt/volume8
+      volumes:
+      - name: volume1
+        persistentVolumeClaim:
+          claimName: volume1
+      - name: volume2
+        persistentVolumeClaim:
+          claimName: volume2
+      - name: volume3
+        persistentVolumeClaim:
+          claimName: volume3
+      - name: volume4
+        persistentVolumeClaim:
+          claimName: volume4
+      - name: volume5
+        persistentVolumeClaim:
+          claimName: volume5
+      - name: volume6
+        persistentVolumeClaim:
+          claimName: volume6
+      - name: volume7
+        persistentVolumeClaim:
+          claimName: volume7
+      - name: volume8
+        persistentVolumeClaim:
+          claimName: volume8

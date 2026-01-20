@@ -1,0 +1,18 @@
+---
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+persistentvolumeclaims: "2"
+services_loadbalancers: "0"
+services_nodeports: "0"
+pods: "1"
+replicationcontrollers: "1"
+secrets: "6"
+configmaps: "4"
+services_value: "10"
+limits_cpu: "20"
+limits_memory: "20Gi"
+requests_cpu: "10"
+requests_memory: "10Gi"
