@@ -1,3 +1,0 @@
-[console_scripts]
-k8s-deployer = k8sdeployer.cli:main
-k8sdeploy = k8sdeployer.cli:main
