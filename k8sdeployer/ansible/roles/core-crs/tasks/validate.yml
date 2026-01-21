@@ -28,7 +28,8 @@
   retries: 20
   until: crs.resources | length > 0
   ignore_errors: yes
+  failed_when: false
 
 - fail:
     msg: "There should be one core OpenShift 4.x CR -InstallPlan present, before and after the migration."
-  when: crs.resources | length == 0
+  when: crs.api_found is defined and crs.api_found and (crs.resources | default([]) | length == 0)

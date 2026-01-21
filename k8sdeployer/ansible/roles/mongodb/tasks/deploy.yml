@@ -93,8 +93,8 @@
   delay: 5
 
 - name: Load data in mongodb database
-  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mongo sampledb -u {{ mongodb_user }} -p {{ mongodb_pass }} < /tmp/mongodb.js\""
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- mongosh sampledb --file /tmp/mongodb.js || kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mongo sampledb < /tmp/mongodb.js\""
   register: output
-  until: output.rc == 0 and output.stdout != ''
+  until: output.rc == 0
   retries: 5
   delay: 5

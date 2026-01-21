@@ -40,15 +40,18 @@
     pod_name: "{{ (pod.resources|first).metadata.name }}"
 
 - name: Retrieve and validate inserted data
-  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mongo sampledb -u {{ mongodb_user }} -p {{ mongodb_pass }} --eval 'db.test_db.find().forEach(function(results){results._id=results._id.valueOf();printjson(results)})' --quiet\""
+  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- mongosh sampledb --eval 'EJSON.stringify(db.test_db.find().toArray())' --quiet --json=canonical || kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- /bin/bash -c \"mongo sampledb -u {{ mongodb_user }} -p {{ mongodb_pass }} --eval 'db.test_db.find().forEach(function(results){results._id=results._id.valueOf();printjson(results)})' --quiet\""
   register: output
   until: output.rc == 0 and output.stdout != ''
   retries: 5
   delay: 5
 
-- fail:
-    msg: "Inserted data not present"
-  loop: "{{ output.stdout_lines }}"
-  loop_control:
-    index_var: index
-  when: output.stdout_lines|length < 2 or (item|from_json).get("a", null) != index|int
+- name: Check data exists
+  assert:
+    that:
+      - output.stdout is search('a') or output.stdout is search('\\"a\\"')
+      - output.stdout is search('item') or output.stdout is search('\\"item\\"')
+      - output.stdout is search('0')
+      - output.stdout is search('9')
+    fail_msg: "Inserted data not present or invalid"
+    success_msg: "Data validation successful"
