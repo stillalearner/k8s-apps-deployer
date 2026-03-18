@@ -84,10 +84,23 @@ The tool supports two authentication methods:
 
    Or use CLI flags:
    ```bash
-   k8sdeploy deploy mysql -n mysql --token "your-token" --server "https://api.example.com:6443"
+   k8sdeploy --token "your-token" --server "https://api.example.com:6443" deploy mysql -n mysql
    ```
 
+3. **Kubeconfig Context** (optional): Select a specific context from kubeconfig
+   ```bash
+   k8sdeploy --context my-context deploy mysql -n mysql
+   ```
+
+   If `--context` is not provided, the kubeconfig `current-context` is used.
+
 ### Commands
+
+Global options must be passed before the command, for example:
+
+```bash
+k8sdeploy --kubeconfig ~/.kube/config --context my-context deploy mysql -n mysql
+```
 
 #### List available applications
 
@@ -106,6 +119,7 @@ Options:
 - `-f, --force-cleanup`: Cleanup application before deploying
 - `-e, --extra-vars`: Extra variables as JSON string
 - `--kubeconfig`: Path to kubeconfig file
+- `--context`: Kubeconfig context to use (optional)
 - `--token`: Service account token
 - `--server`: API server URL (required with --token)
 - `--insecure-skip-tls-verify`: Skip TLS certificate verification
@@ -115,6 +129,7 @@ Example:
 ```bash
 k8sdeploy deploy mysql -n mysql
 k8sdeploy deploy mysql -n mysql -e '{"storage_size": "5Gi"}'
+k8sdeploy --context my-context deploy mysql -n mysql
 ```
 
 #### Remove an application
