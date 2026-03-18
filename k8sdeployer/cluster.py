@@ -1,5 +1,4 @@
 """Cluster connection module supporting both kubeconfig and service account token authentication"""
-import os
 import logging
 from typing import Optional
 import kubernetes
@@ -35,23 +34,8 @@ class ClusterConnection:
         
         if token and server:
             self.connect_with_token(server, token)
-        elif kubeconfig and os.path.isfile(kubeconfig):
-            self.connect_with_kubeconfig(kubeconfig, context)
         else:
-            # No usable kubeconfig (path not set, or file missing e.g. not mounted in container):
-            # try in-cluster config first (when running as a pod), then default kubeconfig.
-            try:
-                self.connect_in_cluster()
-            except Exception:
-                self.connect_with_kubeconfig(None, context)
-    
-    def connect_in_cluster(self):
-        """Connect using in-cluster config (service account when running inside a pod)"""
-        kubernetes.config.load_incluster_config()
-        configuration = Configuration.get_default_copy()
-        self.client = DynamicClient(kubernetes.client.ApiClient(configuration))
-        self.server = configuration.host
-        logger.info(f"Connected to cluster (in-cluster): {self.server}")
+            self.connect_with_kubeconfig(kubeconfig, context)
     
     def connect_with_kubeconfig(self, kubeconfig: Optional[str] = None, context: Optional[str] = None):
         """Connect using kubeconfig file"""
