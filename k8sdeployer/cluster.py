@@ -1,5 +1,4 @@
 """Cluster connection module supporting both kubeconfig and service account token authentication"""
-import os
 import logging
 from typing import Optional
 import kubernetes
@@ -14,6 +13,7 @@ class ClusterConnection:
     """Manages connection to Kubernetes/OpenShift cluster"""
     
     def __init__(self, kubeconfig: Optional[str] = None, 
+                 context: Optional[str] = None,
                  token: Optional[str] = None,
                  server: Optional[str] = None,
                  verify_ssl: bool = True):
@@ -22,6 +22,7 @@ class ClusterConnection:
         
         Args:
             kubeconfig: Path to kubeconfig file (defaults to ~/.kube/config)
+            context: Kubeconfig context to use
             token: Service account token for authentication
             server: API server URL (required if using token)
             verify_ssl: Whether to verify SSL certificates
@@ -34,15 +35,15 @@ class ClusterConnection:
         if token and server:
             self.connect_with_token(server, token)
         else:
-            self.connect_with_kubeconfig(kubeconfig)
+            self.connect_with_kubeconfig(kubeconfig, context)
     
-    def connect_with_kubeconfig(self, kubeconfig: Optional[str] = None):
+    def connect_with_kubeconfig(self, kubeconfig: Optional[str] = None, context: Optional[str] = None):
         """Connect using kubeconfig file"""
         try:
             if kubeconfig:
-                kubernetes.config.load_kube_config(config_file=kubeconfig)
+                kubernetes.config.load_kube_config(config_file=kubeconfig, context=context)
             else:
-                kubernetes.config.load_kube_config()
+                kubernetes.config.load_kube_config(context=context)
             
             configuration = Configuration.get_default_copy()
             self.client = DynamicClient(kubernetes.client.ApiClient(configuration))
