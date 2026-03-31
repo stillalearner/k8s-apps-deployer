@@ -10,6 +10,7 @@
     host: "{{ server }}"
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
+  when: non_admin_user == false
 
 - name: Import image to imagestream (OpenShift only)
   ansible.builtin.command: >

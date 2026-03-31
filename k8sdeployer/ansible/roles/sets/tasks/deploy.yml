@@ -10,6 +10,7 @@
     host: "{{ server }}"
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
+  when: non_admin_user == false
 
 - name: Deploy daemonset
   k8s:

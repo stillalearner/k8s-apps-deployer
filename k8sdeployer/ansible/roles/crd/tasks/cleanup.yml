@@ -7,6 +7,7 @@
     state: absent
     namespace: "{{ namespace }}"
     definition: "{{ lookup('template', 'foo-crd.yml.j2') | from_yaml }}"
+  when: non_admin_user | bool == false
 
 - name: Remove namespace
   k8s:
@@ -19,3 +20,4 @@
     state: absent
     wait: yes
     wait_timeout: 600
+  when: non_admin_user | bool == false

@@ -4,6 +4,9 @@ access_modes: ReadWriteOnce
 storage_size: 1Gi
 pvc_index: 1
 
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
 with_deploy: false
 with_cleanup: false
 with_validate: false

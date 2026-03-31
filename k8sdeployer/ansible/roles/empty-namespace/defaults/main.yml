@@ -2,6 +2,9 @@
 rolebinding_name: basic-role-binding
 test_rolename: basic-role
 
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
 with_cleanup: false
 with_deploy: false
 with_validate: false

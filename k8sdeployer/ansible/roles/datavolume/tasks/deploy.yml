@@ -8,6 +8,7 @@
     kind: Namespace
     name: "{{ namespace }}"
     state: present
+  when: non_admin_user == false
 
 - name: Deploy DataVolume
   k8s:
