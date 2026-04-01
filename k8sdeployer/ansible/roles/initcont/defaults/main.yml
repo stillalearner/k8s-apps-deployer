@@ -6,6 +6,9 @@ external_image_name: quay.io/openshifttest/alpine:latest
 internal_image_name: internal-alpine
 internal_image_tag: int
 
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
 with_cleanup: false
 with_deploy: false
 with_validate_source: false

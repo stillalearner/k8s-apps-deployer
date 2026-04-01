@@ -7,6 +7,9 @@ internal_image_name: internal-alpine
 internal_image_tag: int
 external_image_name: quay.io/migqe/nginx-unprivileged:1.23
 
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
 with_cleanup: false
 with_deploy: false
 with_validate: false

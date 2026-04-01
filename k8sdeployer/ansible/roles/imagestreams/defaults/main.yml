@@ -32,5 +32,8 @@ with_migrate: false
 with_cleanup: false
 with_validate: false
 with_mirror: false
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
 add_imagestreams: true
 add_istags: true

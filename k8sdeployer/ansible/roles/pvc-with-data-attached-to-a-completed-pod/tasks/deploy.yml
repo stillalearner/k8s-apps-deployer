@@ -10,6 +10,7 @@
     host: "{{ server }}"
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
+  when: non_admin_user == false
 
 - name: Create a pod mounted to a pvc with data
   k8s:

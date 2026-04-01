@@ -11,6 +11,7 @@
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
   ignore_errors: yes
+  when: non_admin_user == false
 
 - name: Create permissions
   k8s:
@@ -20,6 +21,7 @@
     state: present
     namespace: "{{ namespace }}"
     definition: "{{ lookup('template', 'foo-permissions.yml.j2') | from_yaml }}"
+  when: non_admin_user == false
 
 - name: Create CRD
   k8s:
@@ -29,6 +31,7 @@
     state: present
     namespace: "{{ namespace }}"
     definition: "{{ lookup('template', 'foo-crd.yml.j2') | from_yaml }}"
+  when: non_admin_user == false
 
 - name: Deploy foo controller
   k8s:
