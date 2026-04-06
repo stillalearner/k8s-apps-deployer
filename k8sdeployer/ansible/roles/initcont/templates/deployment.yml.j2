@@ -24,9 +24,9 @@ items:
           emptyDir: {}
         containers:
         - name: {{ app_name }}
-          image: quay.io/openshifttest/openshift-nginx:latest
+          image: quay.io/migqe/nginx-unprivileged:1.23
           ports:
-          - containerPort: 8081
+          - containerPort: 8080
           volumeMounts:
             - mountPath: "/usr/share/nginx/html"
               name: html-volume
@@ -34,7 +34,7 @@ items:
         - name: provision-pod
           image: {{ init_image }}
           command: ['/bin/sh']
-          args: ['-c', "echo '<h1>HELLO WORLD</h1>' > /usr/share/nginx/html/index.html"]
+          args: ['-c', "echo '<h1>HELLO WORLD FROM INIT CONTAINER</h1>' > /usr/share/nginx/html/index.html"]
           volumeMounts:
             - mountPath: "/usr/share/nginx/html"
               name: html-volume
@@ -49,7 +49,7 @@ items:
   spec:
     ports:
     - port: 8081
-      targetPort: 8081
+      targetPort: 8080
     selector:
       app: {{ app_name }}
     type: LoadBalancer
