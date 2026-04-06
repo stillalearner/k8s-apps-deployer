@@ -14,6 +14,10 @@
     pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
   retries: 30
 
+- name: Set external pod name fact
+  set_fact:
+    ext_pod_name: "{{ (pod.resources | first).metadata.name }}"
+
 - name: Check internal image pods status
   k8s_info:
     host: "{{ server }}"
@@ -30,11 +34,17 @@
   retries: 30
   when: with_validate_target | default(false) | bool
 
+- name: Set internal pod name fact
+  set_fact:
+    int_pod_name: "{{ (pod.resources | first).metadata.name }}"
+  when: with_validate_target | default(false) | bool
+
 - name: Obtain internal route (OpenShift only)
   k8s_info:
     host: "{{ server }}"
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
+    api_version: route.openshift.io/v1
     kind: Route
     namespace: "{{ namespace }}"
     label_selectors:
@@ -43,13 +53,16 @@
   retries: 10
   until: int_route.resources | length > 0
   ignore_errors: yes
-  when: with_validate_target | default(false) | bool
+  when:
+    - with_validate_target | default(false) | bool
+    - is_openshift | default(false) | bool
 
 - name: Obtain external route (OpenShift only)
   k8s_info:
     host: "{{ server }}"
     api_key: "{{ token }}"
     verify_ssl: "{{ verify_ssl }}"
+    api_version: route.openshift.io/v1
     kind: Route
     namespace: "{{ namespace }}"
     label_selectors:
@@ -58,6 +71,7 @@
   retries: 10
   until: ext_route.resources | length > 0
   ignore_errors: yes
+  when: is_openshift | default(false) | bool
 
 - name: Access the internal route content
   uri:
@@ -67,7 +81,27 @@
   register: this
   retries: 10
   until: "'<h1>HELLO WORLD</h1>' in this.content"
-  when: int_route.resources | length > 0 and with_validate_target | default(false) | bool
+  when:
+    - with_validate_target | default(false) | bool
+    - int_route is defined
+    - int_route.resources | default([]) | length > 0
+
+- name: Access the internal app content from inside pod (non-OpenShift)
+  kubernetes.core.k8s_exec:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ int_pod_name }}"
+    container: "{{ int_app_name }}"
+    command: curl -sf http://127.0.0.1:8080/
+  register: this
+  retries: 10
+  delay: 5
+  until: "'<h1>HELLO WORLD</h1>' in this.stdout"
+  when:
+    - with_validate_target | default(false) | bool
+    - int_route is not defined or int_route.resources | default([]) | length == 0
 
 - name: Access the external route content
   uri:
@@ -77,4 +111,21 @@
   register: this
   retries: 10
   until: "'<h1>HELLO WORLD</h1>' in this.content"
-  when: ext_route.resources | length > 0
+  when:
+    - ext_route is defined
+    - ext_route.resources | default([]) | length > 0
+
+- name: Access the external app content from inside pod (non-OpenShift)
+  kubernetes.core.k8s_exec:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ ext_pod_name }}"
+    container: "{{ ext_app_name }}"
+    command: curl -sf http://127.0.0.1:8080/
+  register: this
+  retries: 10
+  delay: 5
+  until: "'<h1>HELLO WORLD FROM INIT CONTAINER</h1>' in this.stdout"
+  when: ext_route is not defined or ext_route.resources | default([]) | length == 0

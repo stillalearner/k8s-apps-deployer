@@ -9,4 +9,7 @@
 
 - name: Validate application
   import_tasks: validate.yml
-  when: with_validate_source | default(false) | bool or with_validate_target | default(false) | bool
+  when: >-
+    with_validate | default(false) | bool or
+    with_validate_source | default(false) | bool or
+    with_validate_target | default(false) | bool
