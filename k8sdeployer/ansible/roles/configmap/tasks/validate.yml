@@ -35,15 +35,31 @@
     pod_name: "{{ redis.resources[0].metadata.name }}"
 
 - name: Verify max memory configuration
-  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- redis-cli CONFIG GET maxmemory"
+  kubernetes.core.k8s_exec:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ pod_name }}"
+    container: "{{ app_name }}"
+    command: redis-cli CONFIG GET maxmemory
   register: memory_command
   until: (memory_command.stdout is search("maxmemory")) and (memory_command.stdout is search("2097152"))
   retries: 5
   delay: 5
+  changed_when: false
 
 - name: Verify memory policy configuration
-  shell: "kubectl exec {{ pod_name }} -n {{ namespace }} -c {{ app_name }} -- redis-cli CONFIG GET maxmemory-policy"
+  kubernetes.core.k8s_exec:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ pod_name }}"
+    container: "{{ app_name }}"
+    command: redis-cli CONFIG GET maxmemory-policy
   register: memory_command
   until: (memory_command.stdout is search("maxmemory-policy")) and (memory_command.stdout is search("allkeys-lru"))
   retries: 5
   delay: 5
+  changed_when: false
