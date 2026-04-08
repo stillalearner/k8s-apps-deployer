@@ -1,0 +1,13 @@
+---
+app_name: pod-with-emptydir
+
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+
+add_data: false
+file_path: /data/test_file
