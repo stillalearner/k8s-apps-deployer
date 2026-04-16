@@ -14,7 +14,7 @@ spec:
     - "10000"
     volumeMounts:
     - mountPath: /data
-      name: emptydir-volume
+      name: data-volume
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
@@ -22,7 +22,6 @@ spec:
       seccompProfile:
         type: RuntimeDefault
   volumes:
-  - name: emptydir-volume
-    emptyDir:
-      medium: Memory
-      sizeLimit: 500Mi
+  - name: data-volume
+    persistentVolumeClaim:
+      claimName: {{ app_name }}-pvc
