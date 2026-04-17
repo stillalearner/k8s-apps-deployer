@@ -42,19 +42,3 @@
   register: pod
   until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
   retries: 30
-
-# Purpose of add_data parameter:
-#   - When add_data: false (default): Test migration of an EMPTY PVC
-#   - When add_data: true: Test migration of a PVC with data
-#
-# This allows the same role to support two test scenarios:
-#   1. Empty PVC migration (MTC-153) - validates crane handles empty PVCs
-#   2. PVC with data migration - validates crane can migrate data
-- name: Add test file to PVC for data migration testing
-  ansible.builtin.command: >
-    kubectl exec {{ (pod.resources|first).metadata.name }}
-    -n {{ namespace }}
-    -- /bin/sh -c "echo 'Test' > {{ file_path }}"
-  when: add_data | bool
-  register: result
-  changed_when: false

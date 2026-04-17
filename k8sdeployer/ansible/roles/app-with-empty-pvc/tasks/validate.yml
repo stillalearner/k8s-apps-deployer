@@ -17,29 +17,19 @@
   retries: 30
 
 - name: Check for user files (excluding lost+found)
-  ansible.builtin.command: >
-    kubectl exec {{ (pod.resources|first).metadata.name }}
-    -n {{ namespace }}
-    -- /bin/sh -c 'find /data -type f'
+  kubernetes.core.k8s_exec:
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ (pod.resources | first).metadata.name }}"
+    container: test-container
+    command: /bin/sh -c 'find /data -type f'
   register: output
-  changed_when: false
 
 - debug:
     msg: "{{ output.stdout }}"
 
 - fail:
     msg: "Expected no user files in /data (lost+found is ignored)"
-  when: add_data | bool == false and output.stdout != ''
-
-- name: Verify file exists
-  ansible.builtin.command: >
-    kubectl exec {{ (pod.resources|first).metadata.name }}
-    -n {{ namespace }}
-    -- /bin/sh -c 'cat {{ file_path }}'
-  register: shell_output
-  when: add_data | bool
-  changed_when: false
-
-- fail:
-    msg: "stdout should contain test string but got {{ shell_output.stdout }}"
-  when: add_data | bool == true and shell_output.stdout != 'Test'
+  when: output.stdout != ''

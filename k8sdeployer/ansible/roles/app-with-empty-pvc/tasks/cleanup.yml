@@ -36,5 +36,5 @@
     state: absent
     wait: yes
     wait_timeout: 600
-  when: non_admin_user | bool == false
+  when: non_admin_user == false
 
