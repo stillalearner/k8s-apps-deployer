@@ -1,5 +1,5 @@
 ---
-app_name: pod-with-emptydir
+app_name: app-with-empty-pvc-pod
 
 # Set this value to true if using a non cluster admin user
 non_admin_user: false
@@ -7,7 +7,3 @@ non_admin_user: false
 with_cleanup: false
 with_deploy: false
 with_validate: false
-
-
-add_data: false
-file_path: /data/test_file

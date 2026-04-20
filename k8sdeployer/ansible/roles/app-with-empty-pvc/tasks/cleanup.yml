@@ -1,4 +1,30 @@
 ---
+- name: Delete pod
+  k8s:
+    state: absent
+    definition:
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: "{{ app_name }}"
+        namespace: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
+- name: Delete PVC
+  k8s:
+    state: absent
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ app_name }}-pvc"
+        namespace: "{{ namespace }}"
+    host: "{{ server }}"
+    api_key: "{{ token }}"
+    verify_ssl: "{{ verify_ssl }}"
+
 - name: Remove namespace
   k8s:
     host: "{{ server }}"
@@ -10,5 +36,5 @@
     state: absent
     wait: yes
     wait_timeout: 600
-  when: non_admin_user | bool == false
+  when: non_admin_user == false
 
