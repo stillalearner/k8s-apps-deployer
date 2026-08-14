@@ -1,0 +1,28 @@
+---
+app_name: pvc-fsgroup
+
+# Set this value to true if using a non cluster admin user
+non_admin_user: false
+
+access_mode: ReadWriteOnce
+storage_size: 1Gi
+
+data_mount_path: /data
+secret_file: group-secret.txt
+secret_content: fsgroup-seed-data
+ready_file: ready.txt
+gid_file: gid.txt
+mode_file: mode.txt
+
+# Used only on non-OpenShift clusters (kind/k8s).
+# On OpenShift, restricted SCC assigns UID/GID from the namespace ranges.
+run_as_user: 1000
+fs_group: 1000
+# Explicit supplemental group for Polarion MTA-882 coverage on vanilla.
+# On OpenShift this field is omitted; SCC/fsGroup injection covers group membership.
+supplemental_groups:
+  - 1000
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

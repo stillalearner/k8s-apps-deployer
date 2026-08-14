@@ -1,0 +1,99 @@
+---
+- name: Check app pod status
+  k8s_info:
+    context: "{{ context | default(omit) }}"
+    host: "{{ server if (token | default('') | string | length) > 0 else omit }}"
+    api_key: "{{ token if (token | default('') | string | length) > 0 else omit }}"
+    verify_ssl: "{{ verify_ssl }}"
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - app={{ app_name }}
+    field_selectors:
+      - status.phase=Running
+  register: pod
+  until: >-
+    pod.resources|default([])|length > 0 and
+    pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten | difference([true]) | length == 0
+  retries: 30
+  delay: 3
+
+- name: Read seeded secret content
+  kubernetes.core.k8s_exec:
+    context: "{{ context | default(omit) }}"
+    host: "{{ server if (token | default('') | string | length) > 0 else omit }}"
+    api_key: "{{ token if (token | default('') | string | length) > 0 else omit }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ (pod.resources | first).metadata.name }}"
+    container: app
+    command: /bin/sh -c "cat {{ data_mount_path }}/{{ secret_file }}"
+  register: secret_out
+
+- name: Assert secret content matches
+  fail:
+    msg: >-
+      Expected {{ data_mount_path }}/{{ secret_file }} to contain
+      '{{ secret_content }}', got '{{ secret_out.stdout | trim }}'
+  when: (secret_out.stdout | trim) != (secret_content | string)
+
+- name: Read file mode
+  kubernetes.core.k8s_exec:
+    context: "{{ context | default(omit) }}"
+    host: "{{ server if (token | default('') | string | length) > 0 else omit }}"
+    api_key: "{{ token if (token | default('') | string | length) > 0 else omit }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ (pod.resources | first).metadata.name }}"
+    container: app
+    command: /bin/sh -c "cat {{ data_mount_path }}/{{ mode_file }}"
+  register: mode_out
+
+- name: Assert file is group-readable and not world-accessible
+  fail:
+    msg: >-
+      Expected mode 640 for group-restricted seed file, got
+      '{{ mode_out.stdout | trim }}'
+  when: (mode_out.stdout | trim) != "640"
+
+- name: Read file group ownership
+  kubernetes.core.k8s_exec:
+    context: "{{ context | default(omit) }}"
+    host: "{{ server if (token | default('') | string | length) > 0 else omit }}"
+    api_key: "{{ token if (token | default('') | string | length) > 0 else omit }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ (pod.resources | first).metadata.name }}"
+    container: app
+    command: /bin/sh -c "cat {{ data_mount_path }}/{{ gid_file }}"
+  register: gid_out
+
+- name: Assert group ownership is present
+  fail:
+    msg: >-
+      Expected a numeric group id for {{ data_mount_path }}/{{ secret_file }},
+      got '{{ gid_out.stdout | trim }}'
+  when: (gid_out.stdout | trim | regex_search('^[0-9]+$')) is none
+
+- name: Assert vanilla cluster uses configured fsGroup
+  fail:
+    msg: >-
+      On non-OpenShift, expected gid {{ fs_group }}, got
+      '{{ gid_out.stdout | trim }}'
+  when:
+    - not (is_openshift | default(false) | bool)
+    - (gid_out.stdout | trim | int) != (fs_group | int)
+
+- name: Prove process can write under fsGroup ownership
+  kubernetes.core.k8s_exec:
+    context: "{{ context | default(omit) }}"
+    host: "{{ server if (token | default('') | string | length) > 0 else omit }}"
+    api_key: "{{ token if (token | default('') | string | length) > 0 else omit }}"
+    verify_ssl: "{{ verify_ssl }}"
+    namespace: "{{ namespace }}"
+    pod: "{{ (pod.resources | first).metadata.name }}"
+    container: app
+    command: >-
+      /bin/sh -c
+      'echo write-ok > {{ data_mount_path }}/write-check.txt
+      && test -s {{ data_mount_path }}/write-check.txt'
