@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app_name }}
+  namespace: {{ namespace }}
+  labels:
+    # `name` is required by crane e2e ScaleDeployment (label selector name=<app>).
+    # `app` is used by GetPodNameByLabel and other helpers.
+    app: {{ app_name }}
+    name: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+        name: {{ app_name }}
+    spec:
+{% if not (is_openshift | default(false) | bool) %}
+      securityContext:
+        fsGroup: {{ fs_group }}
+        runAsUser: {{ run_as_user }}
+        runAsGroup: {{ run_as_user }}
+        supplementalGroups:
+{% for gid in supplemental_groups %}
+          - {{ gid }}
+{% endfor %}
+{% endif %}
+      containers:
+      - name: app
+        image: quay.io/openshifttest/alpine:multiarch
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          # Seed group-restricted data once, then stay up for validation / transfer.
+          if [ ! -f "{{ data_mount_path }}/{{ ready_file }}" ]; then
+            printf '%s\n' "{{ secret_content }}" > "{{ data_mount_path }}/{{ secret_file }}"
+            chmod 640 "{{ data_mount_path }}/{{ secret_file }}"
+            stat -c '%g' "{{ data_mount_path }}/{{ secret_file }}" > "{{ data_mount_path }}/{{ gid_file }}"
+            stat -c '%a' "{{ data_mount_path }}/{{ secret_file }}" > "{{ data_mount_path }}/{{ mode_file }}"
+            printf 'ready\n' > "{{ data_mount_path }}/{{ ready_file }}"
+          fi
+          # Prove the running process can read group-restricted data, then idle.
+          cat "{{ data_mount_path }}/{{ secret_file }}" >/dev/null
+          sleep 3600
+        volumeMounts:
+        - name: data-volume
+          mountPath: {{ data_mount_path }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+{% if not (is_openshift | default(false) | bool) %}
+          runAsUser: {{ run_as_user }}
+          runAsGroup: {{ run_as_user }}
+{% endif %}
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: {{ app_name }}-pvc
